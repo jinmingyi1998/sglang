@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use super::{
     circuit_breaker::{CircuitBreaker, CircuitBreakerConfig},
     worker::{
-        BasicWorker, ConnectionMode, DPAwareWorker, HealthConfig, WorkerMetadata, WorkerType,
+        BasicWorker, ConnectionMode, DPAwareWorker, EngineLoad, HealthConfig, WorkerMetadata,
+        WorkerType,
     },
 };
 use crate::grpc_client::SglangSchedulerClient;
@@ -156,6 +157,7 @@ impl BasicWorkerBuilder {
             consecutive_successes: Arc::new(AtomicUsize::new(0)),
             circuit_breaker: CircuitBreaker::with_config(self.circuit_breaker_config),
             grpc_client,
+            engine_load: EngineLoad::new(),
         }
     }
 }
