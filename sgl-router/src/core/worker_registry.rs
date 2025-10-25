@@ -464,11 +464,7 @@ impl WorkerRegistry {
             }
         });
 
-        crate::core::BackgroundChecker::new(
-            "engine_load_checker".to_string(),
-            handle,
-            shutdown,
-        )
+        crate::core::BackgroundChecker::new("engine_load_checker".to_string(), handle, shutdown)
     }
 }
 

@@ -97,9 +97,11 @@ pub trait Worker: Send + Sync + fmt::Debug {
     /// Get the circuit breaker for this worker
     fn circuit_breaker(&self) -> &CircuitBreaker;
 
-    /// Check if the worker is available (healthy + circuit closed/half-open)
+    /// Check if the worker is available (healthy + circuit closed/half-open + acceptable load)
     fn is_available(&self) -> bool {
-        self.is_healthy() && self.circuit_breaker().can_execute()
+        self.engine_load().is_acceptable()
+            && self.is_healthy()
+            && self.circuit_breaker().can_execute()
     }
 
     /// Record the outcome of a request to this worker
@@ -400,6 +402,23 @@ impl EngineLoad {
 
     pub fn num_tokens(&self) -> usize {
         self.num_tokens.load(Ordering::Relaxed)
+    }
+
+    /// Check if the load is acceptable with custom thresholds
+    pub fn is_acceptable_with_thresholds(
+        &self,
+        max_reqs: usize,
+        max_waiting_reqs: usize,
+        max_tokens: usize,
+    ) -> bool {
+        self.num_reqs() < max_reqs
+            && self.num_waiting_reqs() < max_waiting_reqs
+            && self.num_tokens() < max_tokens
+    }
+
+    /// Check if the load is acceptable based on default thresholds
+    pub fn is_acceptable(&self) -> bool {
+        self.is_acceptable_with_thresholds(64, 8, 1024 * 1024)
     }
 }
 
@@ -947,9 +966,8 @@ impl Worker for DPAwareWorker {
                     match resp.json::<Vec<EngineLoadResponse>>().await {
                         Ok(loads) => {
                             // For DP-aware worker, find the load info matching this worker's dp_rank
-                            let matching_load = loads.iter().find(|load| {
-                                load.dp_rank == Some(self.dp_rank)
-                            });
+                            let matching_load =
+                                loads.iter().find(|load| load.dp_rank == Some(self.dp_rank));
 
                             if let Some(load_info) = matching_load {
                                 self.base_worker.engine_load.update(
